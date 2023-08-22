@@ -14,6 +14,7 @@
 #include <strings.h>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "knowhere/binaryset.h"
@@ -33,6 +34,28 @@ IsFlatIndex(const knowhere::IndexType& index_type) {
     static std::vector<knowhere::IndexType> flat_index_list = {IndexEnum::INDEX_FAISS_IDMAP,
                                                                IndexEnum::INDEX_FAISS_GPU_IDMAP};
     return std::find(flat_index_list.begin(), flat_index_list.end(), index_type) != flat_index_list.end();
+}
+
+inline bool
+IsSameVector(const float* left, const float* right, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        if (std::abs(left[i] - right[i]) > 0.00001) {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool
+AllSameVector(const float* vector, size_t nq, size_t dim) {
+    for (size_t i = 0; i < nq; i++) {
+        const float* left = vector + i * dim;
+        const float* right = vector + (i + 1) * dim;
+        if (!IsSameVector(left, right, dim)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 extern float

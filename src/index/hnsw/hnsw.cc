@@ -14,6 +14,7 @@
 #include <omp.h>
 
 #include <exception>
+#include <iostream>
 #include <new>
 
 #include "common/range_util.h"
@@ -105,6 +106,7 @@ class HnswIndexNode : public IndexNode {
 
         auto hnsw_cfg = static_cast<const HnswConfig&>(cfg);
         auto k = hnsw_cfg.k.value();
+        auto efs = hnsw_cfg.efs.value();
 
         feder::hnsw::FederResultUniq feder_result;
         if (hnsw_cfg.trace_visit.value()) {
@@ -117,27 +119,55 @@ class HnswIndexNode : public IndexNode {
         auto p_id = new int64_t[k * nq];
         auto p_dist = new float[k * nq];
 
-        hnswlib::SearchParam param{(size_t)hnsw_cfg.ef.value(), hnsw_cfg.for_tuning.value()};
         bool transform =
             (index_->metric_type_ == hnswlib::Metric::INNER_PRODUCT || index_->metric_type_ == hnswlib::Metric::COSINE);
 
         std::vector<folly::Future<folly::Unit>> futs;
         futs.reserve(nq);
+        if (nq > 1) {
+            // if (AllSameVector((const float*)xq, nq, index_->data_size_)) {
+            //     std::cout << "not same vector!" << std::endl;
+            // }
+            // std::cout << "efs " << efs.size();
+            // for (auto it = efs.begin(); it != efs.end(); it++) {
+            //     std::cout << " " << *it;
+            // }
+            // std::cout << std::endl;
+        }
+
+        auto it = efs.begin();
         for (int i = 0; i < nq; ++i) {
-            futs.emplace_back(search_pool_->push([&, idx = i]() {
+            size_t ef_param = *it;
+            if (ef_param == -1) {
+                ef_param = hnsw_cfg.ef.value();
+            } else {
+                it++;
+            }
+            futs.emplace_back(search_pool_->push([&, idx = i, ef = ef_param]() {
+                hnswlib::SearchParam param{ef, true};
                 auto single_query = (const char*)xq + idx * index_->data_size_;
-                auto rst = index_->searchKnn(single_query, k, bitset, &param, feder_result);
-                size_t rst_size = rst.size();
                 auto p_single_dis = p_dist + idx * k;
                 auto p_single_id = p_id + idx * k;
-                for (size_t idx = 0; idx < rst_size; ++idx) {
-                    const auto& [dist, id] = rst[idx];
-                    p_single_dis[idx] = transform ? (-dist) : dist;
-                    p_single_id[idx] = id;
-                }
-                for (size_t idx = rst_size; idx < (size_t)k; idx++) {
-                    p_single_dis[idx] = float(1.0 / 0.0);
-                    p_single_id[idx] = -1;
+
+                if (ef == 0) {  // no search
+                    for (size_t ii = 0; ii < (size_t)k; ii++) {
+                        p_single_dis[ii] = float(1.0 / 0.0);
+                        p_single_id[ii] = -1;
+                    }
+                } else {
+                    auto rst =
+                        index_->searchKnn(single_query, std::min((size_t)k, param.ef_), bitset, &param, feder_result);
+                    size_t rst_size = rst.size();
+
+                    for (size_t idx = 0; idx < rst_size; ++idx) {
+                        const auto& [dist, id] = rst[idx];
+                        p_single_dis[idx] = transform ? (-dist) : dist;
+                        p_single_id[idx] = id;
+                    }
+                    for (size_t idx = rst_size; idx < (size_t)k; idx++) {
+                        p_single_dis[idx] = float(1.0 / 0.0);
+                        p_single_id[idx] = -1;
+                    }
                 }
             }));
         }

@@ -31,6 +31,7 @@ class HnswConfig : public BaseConfig {
     CFG_INT efConstruction;
     CFG_INT ef;
     CFG_INT seed_ef;
+    CFG_LIST efs;
     CFG_INT overview_levels;
     KNOHWERE_DECLARE_CONFIG(HnswConfig) {
         KNOWHERE_CONFIG_DECLARE_FIELD(M).description("hnsw M").set_default(30).set_range(1, 2048).for_train();
@@ -50,6 +51,12 @@ class HnswConfig : public BaseConfig {
             .set_default(kIteratorSeedEf)
             .set_range(1, std::numeric_limits<CFG_INT::value_type>::max())
             .for_iterator();
+        KNOWHERE_CONFIG_DECLARE_FIELD(efs)
+            .description("hnsw efs")
+            .set_default({
+                -1,
+            })
+            .for_search();
         KNOWHERE_CONFIG_DECLARE_FIELD(overview_levels)
             .description("hnsw overview levels for feder")
             .set_default(3)
@@ -61,12 +68,13 @@ class HnswConfig : public BaseConfig {
     CheckAndAdjustForSearch(std::string* err_msg) override {
         if (!ef.has_value()) {
             ef = std::max(k.value(), kEfMinValue);
-        } else if (k.value() > ef.value()) {
-            *err_msg =
-                "ef(" + std::to_string(ef.value()) + ") should be larger than k(" + std::to_string(k.value()) + ")";
-            LOG_KNOWHERE_ERROR_ << *err_msg;
-            return Status::out_of_range_in_json;
         }
+        // else if (k.value() > ef.value()) {
+        //     *err_msg =
+        //         "ef(" + std::to_string(ef.value()) + ") should be larger than k(" + std::to_string(k.value()) + ")";
+        //     LOG_KNOWHERE_ERROR_ << *err_msg;
+        //     return Status::out_of_range_in_json;
+        // }
 
         return Status::success;
     }

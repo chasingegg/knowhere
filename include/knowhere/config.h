@@ -273,6 +273,7 @@ class Config {
 
     static Status
     Load(Config& cfg, const Json& json, PARAM_TYPE type, std::string* const err_msg = nullptr) {
+        // std::cout << "load: " << json << std::endl;
         for (const auto& it : cfg.__DICT__) {
             const auto& var = it.second;
 
