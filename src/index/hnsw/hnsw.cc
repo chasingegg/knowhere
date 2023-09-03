@@ -126,7 +126,7 @@ class HnswIndexNode : public IndexNode {
         for (int i = 0; i < nq; ++i) {
             futs.emplace_back(search_pool_->push([&, idx = i]() {
                 auto single_query = (const char*)xq + idx * index_->data_size_;
-                auto rst = index_->searchKnn(single_query, k, bitset, &param, feder_result);
+                auto rst = index_->searchKnn(single_query, std::min((size_t)k, param.ef_), bitset, &param, feder_result);
                 size_t rst_size = rst.size();
                 auto p_single_dis = p_dist + idx * k;
                 auto p_single_id = p_id + idx * k;
