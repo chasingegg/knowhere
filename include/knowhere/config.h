@@ -433,9 +433,10 @@ class Config {
                     return Status::type_conflict_in_json;
                 }
                 *ptr->val = CFG_LIST();
-                for (auto&& i : json[it.first]) {
-                    ptr->val->value().push_back(i);
-                }
+                // for (auto&& i : json[it.first]) {
+                //     ptr->val->value().push_back(i);
+                // }
+                *ptr->val = json[it.first];
             }
 
             if (const Entry<CFG_BOOL>* ptr = std::get_if<Entry<CFG_BOOL>>(&var)) {

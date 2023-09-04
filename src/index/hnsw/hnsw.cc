@@ -117,14 +117,22 @@ class HnswIndexNode : public IndexNode {
         auto p_id = new int64_t[k * nq];
         auto p_dist = new float[k * nq];
 
-        hnswlib::SearchParam param{(size_t)hnsw_cfg.ef.value(), hnsw_cfg.for_tuning.value()};
         bool transform =
             (index_->metric_type_ == hnswlib::Metric::INNER_PRODUCT || index_->metric_type_ == hnswlib::Metric::COSINE);
 
         std::vector<folly::Future<folly::Unit>> futs;
         futs.reserve(nq);
+        auto efs = hnsw_cfg.efs.value();
+        auto it = efs.begin();
         for (int i = 0; i < nq; ++i) {
+            size_t ef_param = *it;
+            if (ef_param == -1) {
+                ef_param = hnsw_cfg.ef.value();
+            } else {
+                it++;
+            }
             futs.emplace_back(search_pool_->push([&, idx = i]() {
+                hnswlib::SearchParam param{ef_param, hnsw_cfg.for_tuning.value()};
                 auto single_query = (const char*)xq + idx * index_->data_size_;
                 auto rst = index_->searchKnn(single_query, std::min((size_t)k, param.ef_), bitset, &param, feder_result);
                 size_t rst_size = rst.size();
