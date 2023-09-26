@@ -12,6 +12,9 @@
 #ifndef INDEX_NODE_H
 #define INDEX_NODE_H
 
+#include <chrono>
+#include <iostream>
+
 #include "knowhere/binaryset.h"
 #include "knowhere/bitsetview.h"
 #include "knowhere/config.h"
@@ -38,8 +41,14 @@ class IndexNode : public Object {
 
     virtual Status
     Build(const DataSet& dataset, const Config& cfg) {
+        auto s = std::chrono::high_resolution_clock::now();
+
         RETURN_IF_ERROR(Train(dataset, cfg));
-        return Add(dataset, cfg);
+        auto e = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = e - s;
+        std::cout << "gaochao all train " << diff.count() << "s" << std::endl;
+        auto status = Add(dataset, cfg);
+        return status;
     }
 
     virtual Status

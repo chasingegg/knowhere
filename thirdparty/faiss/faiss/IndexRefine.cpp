@@ -13,6 +13,8 @@
 #include <faiss/utils/Heap.h>
 #include <faiss/utils/distances.h>
 #include <faiss/utils/utils.h>
+#include <chrono>
+#include <iostream>
 
 namespace faiss {
 
@@ -42,10 +44,23 @@ IndexRefine::IndexRefine()
           own_refine_index(false) {}
 
 void IndexRefine::train(idx_t n, const float* x) {
+    auto s = std::chrono::high_resolution_clock::now();
+
+
     base_index->train(n, x);
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+    std::cout << "gaochao refine base "
+            << diff.count() << "s" << std::endl;
+    s = std::chrono::high_resolution_clock::now();
+
     if (refine_index)
         refine_index->train(n, x);
     is_trained = true;
+    e = std::chrono::high_resolution_clock::now();
+    diff = e - s;
+    std::cout << "gaochao refine refine "
+            << diff.count() << "s" << std::endl;
 }
 
 void IndexRefine::add(idx_t n, const float* x) {

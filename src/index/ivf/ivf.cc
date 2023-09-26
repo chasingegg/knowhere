@@ -9,6 +9,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 // or implied. See the License for the specific language governing permissions and limitations under the License.
 
+#include <chrono>
+
 #include "common/metric.h"
 #include "common/range_util.h"
 #include "faiss/IndexBinaryFlat.h"
@@ -247,7 +249,11 @@ IvfIndexNode<T>::Train(const DataSet& dataset, const Config& cfg) {
     std::unique_ptr<ThreadPool::ScopedOmpSetter> setter;
     if (base_cfg.num_build_thread.has_value()) {
         setter = std::make_unique<ThreadPool::ScopedOmpSetter>(base_cfg.num_build_thread.value());
+    } else {
+        setter = std::make_unique<ThreadPool::ScopedOmpSetter>();
     }
+    LOG_KNOWHERE_INFO_ << "gaochao max threads: " << omp_get_max_threads()
+                       << " current threads: " << omp_get_num_threads();
 
     bool is_cosine = IsMetricType(base_cfg.metric_type.value(), knowhere::metric::COSINE);
 
@@ -277,7 +283,14 @@ IvfIndexNode<T>::Train(const DataSet& dataset, const Config& cfg) {
             auto nlist = MatchNlist(rows, ivf_flat_cfg.nlist.value());
             qzr = new (std::nothrow) typename QuantizerT<T>::type(dim, metric.value());
             index = std::make_unique<faiss::IndexIVFFlat>(qzr, dim, nlist, metric.value(), is_cosine);
+            auto s = std::chrono::high_resolution_clock::now();
             index->train(rows, (const float*)data);
+            auto e = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = e - s;
+
+            LOG_KNOWHERE_INFO_ << "gaochao train knowhere index done "
+                               << "IVFFLAT " << diff.count() << "s, row " << rows << " dim " << dim << " nlist "
+                               << nlist << " metric " << metric.value();
         }
         if constexpr (std::is_same<faiss::IndexIVFFlatCC, T>::value) {
             const IvfFlatCcConfig& ivf_flat_cc_cfg = static_cast<const IvfFlatCcConfig&>(cfg);
@@ -293,7 +306,14 @@ IvfIndexNode<T>::Train(const DataSet& dataset, const Config& cfg) {
             auto nbits = MatchNbits(rows, ivf_pq_cfg.nbits.value());
             qzr = new (std::nothrow) typename QuantizerT<T>::type(dim, metric.value());
             index = std::make_unique<faiss::IndexIVFPQ>(qzr, dim, nlist, ivf_pq_cfg.m.value(), nbits, metric.value());
+            auto s = std::chrono::high_resolution_clock::now();
             index->train(rows, (const float*)data);
+            auto e = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = e - s;
+
+            LOG_KNOWHERE_INFO_ << "gaochao train knowhere index done "
+                               << "IVFPQ " << diff.count() << "s, row " << rows << " dim " << dim << " nlist " << nlist
+                               << " metric " << metric.value();
         }
         if constexpr (std::is_same<faiss::IndexScaNN, T>::value) {
             const ScannConfig& scann_cfg = static_cast<const ScannConfig&>(cfg);
@@ -308,7 +328,13 @@ IvfIndexNode<T>::Train(const DataSet& dataset, const Config& cfg) {
             } else {
                 index = std::make_unique<faiss::IndexScaNN>(base_index, nullptr);
             }
+            auto s = std::chrono::high_resolution_clock::now();
             index->train(rows, (const float*)data);
+            auto e = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = e - s;
+            LOG_KNOWHERE_INFO_ << "gaochao train knowhere index done "
+                               << "SCANN " << diff.count() << "s, row " << rows << " dim " << dim << " nlist " << nlist
+                               << " metric " << metric.value();
         }
         if constexpr (std::is_same<faiss::IndexIVFScalarQuantizer, T>::value) {
             const IvfSqConfig& ivf_sq_cfg = static_cast<const IvfSqConfig&>(cfg);
@@ -354,12 +380,25 @@ IvfIndexNode<T>::Add(const DataSet& dataset, const Config& cfg) {
     std::unique_ptr<ThreadPool::ScopedOmpSetter> setter;
     if (base_cfg.num_build_thread.has_value()) {
         setter = std::make_unique<ThreadPool::ScopedOmpSetter>(base_cfg.num_build_thread.value());
+    } else {
+        setter = std::make_unique<ThreadPool::ScopedOmpSetter>();
     }
     try {
         if constexpr (std::is_same<faiss::IndexBinaryIVF, T>::value) {
             index_->add(rows, (const uint8_t*)data);
         } else {
+            auto s = std::chrono::high_resolution_clock::now();
             index_->add(rows, (const float*)data);
+            auto e = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = e - s;
+            if constexpr (std::is_same<faiss::IndexIVFPQ, T>::value) {
+                LOG_KNOWHERE_INFO_ << "add knowhere index done "
+                                   << "IVFPQ " << diff.count();
+            }
+            if constexpr (std::is_same<faiss::IndexScaNN, T>::value) {
+                LOG_KNOWHERE_INFO_ << "add knowhere index done "
+                                   << "SCANN " << diff.count();
+            }
         }
     } catch (std::exception& e) {
         LOG_KNOWHERE_WARNING_ << "faiss inner error: " << e.what();

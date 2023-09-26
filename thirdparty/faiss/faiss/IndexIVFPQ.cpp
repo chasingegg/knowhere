@@ -14,7 +14,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
-
+#include <iostream>
 #include <algorithm>
 
 #include <faiss/utils/Heap.h>
@@ -62,7 +62,14 @@ IndexIVFPQ::IndexIVFPQ(
  * training                                                     */
 
 void IndexIVFPQ::train_residual(idx_t n, const float* x) {
+    auto s = std::chrono::high_resolution_clock::now();
+
     train_residual_o(n, x, nullptr);
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+
+    std::cout << "gaochao train_residual knowhere index done IVF_PQ "
+                << diff.count() << "s";
 }
 
 void IndexIVFPQ::train_residual_o(idx_t n, const float* x, float* residuals_2) {

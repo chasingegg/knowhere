@@ -133,6 +133,7 @@ IndexIVFPQFastScan::IndexIVFPQFastScan(const IndexIVFPQ& orig, int bbs)
  *********************************************************/
 
 void IndexIVFPQFastScan::train_residual(idx_t n, const float* x_in) {
+    auto s = std::chrono::high_resolution_clock::now();
     const float* x = fvecs_maybe_subsample(
             d,
             (size_t*)&n,
@@ -172,12 +173,30 @@ void IndexIVFPQFastScan::train_residual(idx_t n, const float* x_in) {
                n,
                d);
     }
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+
+    std::cout << "gaochao residual before knowhere index done SCANN "
+                << diff.count() << "s" << std::endl;
     pq.verbose = verbose;
+    
+    s = std::chrono::high_resolution_clock::now();
     pq.train(n, trainset);
+    e = std::chrono::high_resolution_clock::now();
+    diff = e - s;
+    std::cout << "gaochao residual in knowhere index done SCANN "
+                << diff.count() << "s" << std::endl;
+
+
+    s = std::chrono::high_resolution_clock::now();
 
     if (by_residual && metric_type == METRIC_L2) {
         precompute_table();
     }
+    e = std::chrono::high_resolution_clock::now();
+    diff = e - s;
+    std::cout << "gaochao residual after knowhere index done SCANN "
+                << diff.count() << "s" << std::endl;
 }
 
 void IndexIVFPQFastScan::precompute_table() {
@@ -761,7 +780,11 @@ void IndexIVFPQFastScan::search_thread_safe(
     FAISS_THROW_IF_NOT(final_nprobe > 0);
     IVFSearchParameters params;
     params.nprobe = final_nprobe;
-
+#ifdef __AVX2__
+    // std::cout << "scann use avx2" << std::endl;
+#else
+    std::cout << "scann use raw" << std::endl;
+#endif
     if (metric_type == METRIC_L2) {
         search_dispatch_implem<true>(n, x, k, distances, labels, &params, bitset);
     } else {

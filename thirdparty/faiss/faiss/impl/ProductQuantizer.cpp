@@ -12,9 +12,12 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <memory>
-
+#include <chrono>
+#include <iostream>
 #include <algorithm>
+#include <vector>
 
 #include <faiss/FaissHook.h>
 #include <faiss/IndexFlat.h>
@@ -263,7 +266,12 @@ void ProductQuantizer::train(int n, const float* x) {
 
         float* xslice = new float[n * dsub];
         ScopeDeleter<float> del(xslice);
+        std::vector<double> time_list;
+        std::string ss;
+        double time_sum = 0.0;
         for (int m = 0; m < M; m++) {
+            auto s = std::chrono::high_resolution_clock::now();
+
             for (int j = 0; j < n; j++)
                 memcpy(xslice + j * dsub,
                        x + j * d + m * dsub,
@@ -300,7 +308,15 @@ void ProductQuantizer::train(int n, const float* x) {
             IndexFlatL2 index(dsub);
             clus.train(n, xslice, assign_index ? *assign_index : index);
             set_params(clus.centroids.data(), m);
+            auto e = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = e - s;
+            double t = diff.count();
+            ss += std::to_string(double(int(t * 10)) / 10) + ",";
+            time_list.push_back(t);
+            time_sum += t;
         }
+        std::string fi = std::to_string(time_sum) + "," + ss;
+        std::cout << "train inside knowhere index done " << fi << std::endl;
 
     } else {
         Clustering clus(dsub, ksub, cp);

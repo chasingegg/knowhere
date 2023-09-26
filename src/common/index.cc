@@ -11,6 +11,9 @@
 
 #include "knowhere/index.h"
 
+#include <chrono>
+#include <iostream>
+
 #include "knowhere/comp/time_recorder.h"
 #include "knowhere/dataset.h"
 #include "knowhere/expected.h"

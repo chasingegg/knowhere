@@ -11,7 +11,8 @@
 
 #include <omp.h>
 #include <mutex>
-
+#include <iostream>
+#include <chrono>
 #include <algorithm>
 #include <cinttypes>
 #include <cstdio>
@@ -997,14 +998,26 @@ void IndexIVF::update_vectors(int n, const idx_t* new_ids, const float* x) {
 void IndexIVF::train(idx_t n, const float* x) {
     if (verbose)
         printf("Training level-1 quantizer\n");
+    auto s = std::chrono::high_resolution_clock::now();
 
     train_q1(n, x, verbose, metric_type);
 
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+
+    std::cout << "gaochao train_level1 knowhere index done "
+                << diff.count() << "s" << std::endl;
+
     if (verbose)
         printf("Training IVF residual\n");
+    auto s2 = std::chrono::high_resolution_clock::now();
 
     train_residual(n, x);
     is_trained = true;
+    auto e2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff2 = e2 - s2;
+    std::cout << "gaochao train_all knowhere index done "
+            << diff2.count() << "s" << std::endl;
 }
 
 void IndexIVF::train_residual(idx_t /*n*/, const float* /*x*/) {
