@@ -133,6 +133,7 @@ fvec_hook(std::string& simd_type) {
         simd_type = "GENERIC";
         support_pq_fast_scan = false;
     }
+    std::cout << "simd type " << simd_type << std::endl;
 #endif
 
 #if defined(__ARM_NEON)
