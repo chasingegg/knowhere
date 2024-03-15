@@ -61,6 +61,7 @@ constexpr const char* TENSOR = "tensor";
 constexpr const char* ROWS = "rows";
 constexpr const char* NQ = "nq";
 constexpr const char* IDS = "ids";
+constexpr const char* CENTROID_ID_MAPPING = "centroid_id_mapping";
 constexpr const char* DISTANCE = "distance";
 constexpr const char* LIMS = "lims";
 constexpr const char* TOPK = "k";

@@ -42,12 +42,18 @@ load_bin_file(const std::string& fname, std::unique_ptr<T[]>& data, uint64_t& of
     }
     reader.seekg(0, std::ios::beg);
     uint64_t npts, dim;
-    reader.read((char*)&npts, sizeof(uint64_t));
-    reader.read((char*)&dim, sizeof(uint64_t));
+    uint32_t npts_32, dim_32;
+    // reader.read((char*)&npts, sizeof(uint64_t));
+    // reader.read((char*)&npts, sizeof(uint64_t));
+
+    reader.read((char*)&npts_32, sizeof(uint32_t));
+    reader.read((char*)&dim_32, sizeof(uint32_t));
+    npts = npts_32;
+    dim = dim_32;
 
     LOG_KNOWHERE_INFO_ << "Metadata: #pts = " << npts << ", #dims = " << dim;
 
-    size_t expected_actual_file_size = npts * dim * sizeof(T) + 2 * sizeof(uint64_t);
+    size_t expected_actual_file_size = npts * dim * sizeof(T) + 2 * sizeof(uint32_t);
     if (actual_file_size != expected_actual_file_size) {
         LOG_KNOWHERE_ERROR_ << "Error. File size mismatch. Actual size is " << actual_file_size
                             << " while expected size is  " << expected_actual_file_size;
@@ -65,8 +71,14 @@ inline bool
 get_bin_metadata(const std::string& bin_file, uint64_t& nrows, uint64_t& ncols) {
     std::ifstream reader(bin_file.c_str(), std::ios::binary);
     if (!reader.fail() && reader.is_open()) {
-        reader.read((char*)&nrows, sizeof(uint64_t));
-        reader.read((char*)&ncols, sizeof(uint64_t));
+        uint32_t nrows_32, ncols_32;
+        // reader.read((char*)&nrows, sizeof(uint64_t));
+        // reader.read((char*)&ncols, sizeof(uint64_t));
+        reader.read((char*)&nrows_32, sizeof(uint32_t));
+        reader.read((char*)&ncols_32, sizeof(uint32_t));
+        nrows = nrows_32;
+        ncols = ncols_32;
+
         return true;
     } else {
         LOG_KNOWHERE_ERROR_ << "Could not open file: " << bin_file;
@@ -79,10 +91,15 @@ inline bool
 write_output_bin(const std::string& bin_file, T* data, uint64_t npts, uint64_t ndim) {
     std::ofstream writer(bin_file, std::ios::binary | std::ios::out);
     if (!writer.fail() && writer.is_open()) {
-        writer.write((char*)&npts, sizeof(uint64_t));
-        writer.write((char*)&ndim, sizeof(uint64_t));
+        uint32_t npts_32 = (uint32_t)npts;
+        uint32_t ndim_32 = (uint32_t)ndim;
+        writer.write((char*)&npts_32, sizeof(uint32_t));
+        writer.write((char*)&ndim_32, sizeof(uint32_t));
+
+        // writer.write((char*)&npts, sizeof(uint64_t));
+        // writer.write((char*)&ndim, sizeof(uint64_t));
         LOG_KNOWHERE_INFO_ << "bin: #pts = " << npts << ", #dim = " << ndim
-                           << ", size = " << npts * ndim * sizeof(T) + 2 * sizeof(uint64_t) << "B";
+                           << ", size = " << npts * ndim * sizeof(T) + 2 * sizeof(uint32_t) << "B";
         writer.write((char*)data, npts * ndim * sizeof(T));
         writer.close();
         return true;
@@ -111,7 +128,7 @@ class KMeans {
         return centroids_;
     }
 
-    const std::unique_ptr<uint32_t[]>&
+    std::unique_ptr<uint32_t[]>&
     get_cluster_id_mapping() {
         return cluster_id_mapping_;
     }

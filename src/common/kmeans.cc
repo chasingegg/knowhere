@@ -443,7 +443,7 @@ ClusteringMajorCompaction(const std::vector<std::string>& file_paths, const std:
     KMeans<VecT> kMeans(num_clusters, dim);
     kMeans.fit(data.get(), sample_num);
     auto& centroids = kMeans.get_centroids();
-    const auto& cluster_id_mapping = kMeans.get_cluster_id_mapping();
+    auto& cluster_id_mapping = kMeans.get_cluster_id_mapping();
     data.reset();  // release raw data used for kmeans train
 
     // sample data for kmeans train, so we need to go through tail data to get overall cluster_id_mapping
@@ -473,7 +473,7 @@ ClusteringMajorCompaction(const std::vector<std::string>& file_paths, const std:
             return expected<DataSetPtr>::Err(Status::disk_file_error, "create cluster id mapping failed");
         }
     }
-    return GenResultDataSet(num_clusters, dim, centroids.release());
+    return GenResultDataSet(dim, centroids.release(), total_num, cluster_id_mapping.release());
 }
 
 template expected<DataSetPtr>
