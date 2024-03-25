@@ -44,8 +44,8 @@ int
 sgemm_(const char* transa, const char* transb, FINTEGER* m, FINTEGER* n, FINTEGER* k, const float* alpha,
        const float* a, FINTEGER* lda, const float* b, FINTEGER* ldb, float* beta, float* c, FINTEGER* ldc);
 
-void
-openblas_set_num_threads(int num_threads);
+// void
+// openblas_set_num_threads(int num_threads);
 }
 
 namespace knowhere::kmeans {
@@ -60,7 +60,7 @@ KMeans<VecT>::exhaustive_L2sqr_blas(const VecT* x, const VecT* y, size_t d, size
         return;
 
     // inside blas call only use one thread, it is more efficient to parallel outside
-    openblas_set_num_threads(1);
+    // openblas_set_num_threads(1);
     /* block sizes */
     const size_t bs_x = faiss::distance_compute_blas_query_bs;
     const size_t bs_y = faiss::distance_compute_blas_database_bs;
