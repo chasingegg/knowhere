@@ -356,6 +356,7 @@ KMeans<VecT>::lloyds_iter(const VecT* train_data, std::vector<std::vector<uint32
     std::vector<int> hassign(n_centroids_, 0);
 
     for (size_t c = 0; c < n_centroids_; ++c) {
+        LOG_KNOWHERE_INFO_ << "centroid " << c << " num vectors size: " << closest_docs[c].size();
         hassign[c] = closest_docs[c].size();
         if (closest_docs[c].empty()) {
             continue;
