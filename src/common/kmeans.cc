@@ -416,7 +416,7 @@ template class KMeans<float>;
 // return centroids and centroid_id_mapping
 template <typename VecT>
 expected<DataSetPtr>
-ClusteringMajorCompaction(const DataSet& dataset, const uint32_t num_clusters) {
+Clustering(const DataSet& dataset, const uint32_t num_clusters) {
     auto rows = dataset.GetRows();
     auto tensor = dataset.GetTensor();
     auto dim = dataset.GetDim();
@@ -446,7 +446,7 @@ ClusteringDataAssign(const DataSet& dataset, const VecT* centroids, const uint32
 }
 
 template expected<DataSetPtr>
-ClusteringMajorCompaction<float>(const DataSet& dataset, const uint32_t num_clusters);
+Clustering<float>(const DataSet& dataset, const uint32_t num_clusters);
 
 template expected<DataSetPtr>
 ClusteringDataAssign<float>(const DataSet& dataset, const float* centroids, const uint32_t num_clusters);

@@ -79,7 +79,7 @@ class KMeans {
 
 template <typename VecT>
 expected<DataSetPtr>
-ClusteringMajorCompaction(const DataSet& dataset, const uint32_t num_clusters);
+Clustering(const DataSet& dataset, const uint32_t num_clusters);
 
 template <typename VecT>
 expected<DataSetPtr>
