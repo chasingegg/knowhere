@@ -44,8 +44,10 @@ int
 sgemm_(const char* transa, const char* transb, FINTEGER* m, FINTEGER* n, FINTEGER* k, const float* alpha,
        const float* a, FINTEGER* lda, const float* b, FINTEGER* ldb, float* beta, float* c, FINTEGER* ldc);
 
-// void
-// openblas_set_num_threads(int num_threads);
+#ifdef KNOWHERE_WITH_OPENBLAS
+void
+openblas_set_num_threads(int num_threads);
+#endif
 }
 
 namespace knowhere::kmeans {
@@ -59,8 +61,10 @@ KMeans<VecT>::exhaustive_L2sqr_blas(const VecT* x, const VecT* y, size_t d, size
     if (nx == 0 || ny == 0)
         return;
 
-    // inside blas call only use one thread, it is more efficient to parallel outside
-    // openblas_set_num_threads(1);
+#ifdef KNOWHERE_WITH_OPENBLAS
+    openblas_set_num_threads(1);
+#endif
+
     /* block sizes */
     const size_t bs_x = faiss::distance_compute_blas_query_bs;
     const size_t bs_y = faiss::distance_compute_blas_database_bs;
@@ -181,18 +185,11 @@ KMeans<VecT>::elkan_L2(const VecT* x, const VecT* y, size_t d, size_t nx, size_t
 
 template <typename VecT>
 void
-KMeans<VecT>::fit(const VecT* vecs, size_t n, size_t max_iter, uint32_t random_state, std::string_view init,
-                  std::string_view algorithm) {
+KMeans<VecT>::fit(const VecT* vecs, size_t n, size_t max_iter, uint32_t random_state) {
     centroids_ = std::make_unique<VecT[]>(n_centroids_ * dim_);
     knowhere::TimeRecorder build_time("Kmeans cost", 2);
 
-    if (init == "random") {
-        initRandom(vecs, n, random_state);
-    } else if (init == "kmeans++") {
-        initKMeanspp(vecs, n, random_state);
-    } else {
-        throw std::runtime_error(std::string("Init method: ") + std::string(init) + " not supported yet.");
-    }
+    initRandom(vecs, n, random_state);
     LOG_KNOWHERE_INFO_ << " n_centroids: " << n_centroids_ << " dim: " << dim_;
 
     float old_loss = std::numeric_limits<float>::max();
@@ -201,23 +198,17 @@ KMeans<VecT>::fit(const VecT* vecs, size_t n, size_t max_iter, uint32_t random_s
     auto closest_centroid_distance = std::make_unique<float[]>(n);
 
     for (size_t iter = 1; iter <= max_iter; ++iter) {
-        if (algorithm == "lloyd") {
-            auto loss = lloyds_iter(vecs, closest_docs, centroid_id_mapping_.get(), closest_centroid_distance.get(), n,
-                                    random_state, verbose_);
+        auto loss = lloyds_iter(vecs, closest_docs, centroid_id_mapping_.get(), closest_centroid_distance.get(), n,
+                                random_state);
 
-            if (verbose_) {
-                LOG_KNOWHERE_INFO_ << "Iter [" << iter << "/" << max_iter << "], loss: " << loss;
-            }
-            if (verbose_ &&
-                ((loss < std::numeric_limits<float>::epsilon()) || ((iter != 1) && ((old_loss - loss) / loss) < 0))) {
-                LOG_KNOWHERE_INFO_ << "Residuals unchanged: " << old_loss << " becomes " << loss
-                                   << ". Early termination.";
-                break;
-            }
-            old_loss = loss;
-        } else {
-            throw std::runtime_error(std::string("Algorithm: ") + std::string(algorithm) + " not supported yet.");
+        if (verbose_) {
+            LOG_KNOWHERE_INFO_ << "Iter [" << iter << "/" << max_iter << "], loss: " << loss;
         }
+        if ((loss < std::numeric_limits<float>::epsilon()) || ((iter != 1) && ((old_loss - loss) / loss) < 0)) {
+            LOG_KNOWHERE_INFO_ << "Residuals unchanged: " << old_loss << " becomes " << loss << ". Early termination.";
+            break;
+        }
+        old_loss = loss;
     }
     build_time.RecordSection("total iteration");
 }
@@ -237,63 +228,6 @@ KMeans<VecT>::initRandom(const VecT* train_data, size_t n_train, uint32_t random
         std::memcpy(centroids_.get() + (j - static_cast<int64_t>(n_train) + static_cast<int64_t>(n_centroids_)) * dim_,
                     train_data + tmp * dim_, dim_ * sizeof(VecT));
     }
-}
-
-template <typename VecT>
-void
-KMeans<VecT>::initKMeanspp(const VecT* train_data, size_t n_train, uint32_t random_state) {
-    std::vector<size_t> picked;
-    std::mt19937 rng(random_state);
-    std::uniform_real_distribution<> distribution(0, 1);
-    std::uniform_int_distribution<size_t> int_dist(0, n_train - 1);
-    size_t init_id = int_dist(rng);
-    size_t num_picked = 1;
-
-    LOG_KNOWHERE_INFO_ << "init kmeans++ start";
-    picked.push_back(init_id);
-    std::memcpy(centroids_.get(), train_data + init_id * dim_, dim_ * sizeof(VecT));
-
-    auto dist = std::make_unique<float[]>(n_train);
-    faiss::fvec_L2sqr_ny(dist.get(), train_data + init_id * dim_, train_data, dim_, n_train);
-
-    double dart_val;
-    size_t tmp_pivot;
-    bool sum_flag = false;
-
-    while (num_picked < n_centroids_) {
-        dart_val = distribution(rng);
-
-        double sum = 0;
-        for (size_t i = 0; i < n_train; i++) {
-            sum = sum + static_cast<double>(dist[i]);
-        }
-
-        if (sum < 1e-6) {
-            sum_flag = true;
-        }
-
-        dart_val *= sum;
-
-        double prefix_sum = 0;
-        for (size_t i = 0; i < n_train; i++) {
-            tmp_pivot = i;
-            if (dart_val >= prefix_sum && dart_val < prefix_sum + static_cast<double>(dist[i])) {
-                break;
-            }
-
-            prefix_sum += static_cast<double>(dist[i]);
-        }
-
-        if (std::find(picked.begin(), picked.end(), tmp_pivot) != picked.end() && sum_flag == false) {
-            continue;
-        }
-        picked.push_back(tmp_pivot);
-        std::memcpy(centroids_.get() + num_picked * dim_, train_data + tmp_pivot * dim_, dim_ * sizeof(VecT));
-
-        faiss::fvec_L2sqr_ny(dist.get(), train_data + init_id * dim_, train_data, dim_, n_train);
-        num_picked++;
-    }
-    LOG_KNOWHERE_INFO_ << "init kmeans++ done.";
 }
 
 template <typename VecT>
@@ -341,7 +275,7 @@ template <typename VecT>
 float
 KMeans<VecT>::lloyds_iter(const VecT* train_data, std::vector<std::vector<uint32_t>>& closest_docs,
                           uint32_t* closest_centroid, float* closest_centroid_distance, size_t n_train,
-                          uint32_t random_state, bool compute_residual) {
+                          uint32_t random_state) {
     float losses = 0.0;
 
     for (size_t c = 0; c < n_centroids_; ++c) {
@@ -355,25 +289,42 @@ KMeans<VecT>::lloyds_iter(const VecT* train_data, std::vector<std::vector<uint32
     std::memset((void*)centroids_.get(), 0x0, n_centroids_ * dim_ * sizeof(VecT));
     std::vector<int> hassign(n_centroids_, 0);
 
-    for (size_t c = 0; c < n_centroids_; ++c) {
-        hassign[c] = closest_docs[c].size();
-        if (closest_docs[c].empty()) {
-            continue;
-        }
-        std::vector<double> centroids_tmp(dim_, 0.0);
-        for (auto i : closest_docs[c]) {
-            for (size_t j = 0; j < dim_; ++j) {
-                centroids_tmp[j] += double(train_data[i * dim_ + j]);
+    //
+    auto pool = ThreadPool::GetGlobalBuildThreadPool();
+    std::vector<folly::Future<folly::Unit>> futures;
+    futures.reserve(n_centroids_);
+
+    for (size_t i = 0; i < n_centroids_; ++i) {
+        futures.emplace_back(pool->push([&, c = i]() {
+            hassign[c] = closest_docs[c].size();
+            if (closest_docs[c].empty()) {
+                return;
             }
-        }
-        for (size_t j = 0; j < dim_; ++j) {
-            centroids_[c * dim_ + j] = VecT(centroids_tmp[j] / closest_docs[c].size());
-        }
+            std::vector<double> centroids_tmp(dim_, 0.0);
+            for (size_t ii = 0; ii < closest_docs[c].size(); ii++) {
+                if (ii + 1 < closest_docs[c].size()) {
+                    auto i1 = closest_docs[c][ii + 1];
+                    // this helps a bit
+                    _mm_prefetch(train_data + i1 * dim_, _MM_HINT_T0);
+                }
+
+                size_t offset = closest_docs[c][ii];
+                for (size_t j = 0; j < dim_; ++j) {
+                    centroids_tmp[j] += double(train_data[offset * dim_ + j]);
+                }
+            }
+            for (size_t j = 0; j < dim_; ++j) {
+                centroids_[c * dim_ + j] = VecT(centroids_tmp[j] / closest_docs[c].size());
+            }
+        }));
     }
-    if (compute_residual) {
-        for (size_t i = 0; i < n_train; ++i) {
-            losses += closest_centroid_distance[i];
-        }
+    for (auto& future : futures) {
+        future.wait();
+    }
+    futures.clear();
+
+    for (size_t i = 0; i < n_train; ++i) {
+        losses += closest_centroid_distance[i];
     }
     split_clusters(hassign, n_train, random_state);
     return losses;

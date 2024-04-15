@@ -56,6 +56,7 @@ if(__PPC64)
 endif()
 
 if(LINUX)
+  add_definitions(-DKNOWHERE_WITH_OPENBLAS)
   set(BLA_VENDOR OpenBLAS)
 endif()
 

@@ -29,8 +29,7 @@ class KMeans {
     }
 
     void
-    fit(const VecT* vecs, size_t n, size_t max_iter = 10, uint32_t random_state = 0, std::string_view init = "random",
-        std::string_view algorithm = "lloyd");
+    fit(const VecT* vecs, size_t n, size_t max_iter = 10, uint32_t random_state = 0);
 
     void
     computeClosestCentroid(const VecT* vecs, size_t n, const VecT* centroids, uint32_t* closest_centroid,
@@ -59,13 +58,9 @@ class KMeans {
     void
     initRandom(const VecT* train_data, size_t n_train, uint32_t random_state);
 
-    void
-    initKMeanspp(const VecT* train_data, size_t n_train, uint32_t random_state);
-
     float
     lloyds_iter(const VecT* train_data, std::vector<std::vector<uint32_t>>& closest_docs, uint32_t* closest_centroids,
-                float* closest_centroid_distancessize_t, size_t n_train, uint32_t random_state,
-                bool compute_residual = false);
+                float* closest_centroid_distancessize_t, size_t n_train, uint32_t random_state);
 
     void
     split_clusters(std::vector<int>& hassign, size_t n_train, uint32_t random_state);
