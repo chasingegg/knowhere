@@ -52,6 +52,10 @@ constexpr const char* INDEX_SPARSE_INVERTED_INDEX = "SPARSE_INVERTED_INDEX";
 constexpr const char* INDEX_SPARSE_WAND = "SPARSE_WAND";
 }  // namespace IndexEnum
 
+namespace ClusteringEnum {
+constexpr const char* CLUSTERING_KMEANS = "KMEANS";
+}  // namespace ClusteringEnum
+
 namespace meta {
 constexpr const char* INDEX_TYPE = "index_type";
 constexpr const char* METRIC_TYPE = "metric_type";
@@ -83,6 +87,7 @@ constexpr const char* TRACE_FLAGS = "trace_flags";
 constexpr const char* MATERIALIZED_VIEW_SEARCH_INFO = "materialized_view_search_info";
 constexpr const char* MATERIALIZED_VIEW_OPT_FIELDS_PATH = "opt_fields_path";
 constexpr const char* MAX_EMPTY_RESULT_BUCKETS = "max_empty_result_buckets";
+constexpr const char* NUM_CLUSTERS = "num_clusters";
 };  // namespace meta
 
 namespace indexparam {

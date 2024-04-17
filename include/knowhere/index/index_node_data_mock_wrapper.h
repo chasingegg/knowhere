@@ -12,7 +12,7 @@
 #ifndef INDEX_NODE_DATA_MOCK_WRAPPER_H
 #define INDEX_NODE_DATA_MOCK_WRAPPER_H
 
-#include "knowhere/index_node.h"
+#include "knowhere/index/index_node.h"
 #include "knowhere/utils.h"
 namespace knowhere {
 

@@ -293,17 +293,6 @@ GenResultDataSet(const int64_t rows, const int64_t dim, const void* tensor) {
 }
 
 inline DataSetPtr
-GenResultDataSet(const int64_t dim, const void* tensor, const int64_t rows, const void* centroid_id_mapping) {
-    auto ret_ds = std::make_shared<DataSet>();
-    ret_ds->SetRows(rows);
-    ret_ds->SetDim(dim);
-    ret_ds->SetTensor(tensor);
-    ret_ds->SetCentroidIdMapping(centroid_id_mapping);
-    ret_ds->SetIsOwner(true);
-    return ret_ds;
-}
-
-inline DataSetPtr
 GenResultDataSet(const int64_t rows, const void* centroid_id_mapping) {
     auto ret_ds = std::make_shared<DataSet>();
     ret_ds->SetRows(rows);

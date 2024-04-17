@@ -9,7 +9,7 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 // or implied. See the License for the specific language governing permissions and limitations under the License.
 
-#include "knowhere/factory.h"
+#include "knowhere/index/index_factory.h"
 
 #ifdef KNOWHERE_WITH_RAFT
 #include <cuda_runtime_api.h>
@@ -47,11 +47,9 @@ IndexFactory::Create(const std::string& name, const int32_t& version, const Obje
     auto key = GetIndexKey<DataType>(name);
     if (func_mapping_.find(key) == func_mapping_.end()) {
         LOG_KNOWHERE_ERROR_ << "failed to find index " << key << " in factory";
-    }
-    if (func_mapping_.find(key) == func_mapping_.end()) {
-        LOG_KNOWHERE_INFO_ << "use key " << key << " to create knowhere index " << name << " with version " << version;
         return expected<Index<IndexNode>>::Err(Status::invalid_index_error, "index not supported");
     }
+    LOG_KNOWHERE_INFO_ << "use key " << key << " to create knowhere index " << name << " with version " << version;
     auto fun_map_v = (FunMapValue<Index<IndexNode>>*)(func_mapping_[key].get());
 
 #ifdef KNOWHERE_WITH_RAFT

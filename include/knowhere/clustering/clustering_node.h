@@ -19,23 +19,31 @@
 #include "knowhere/expected.h"
 #include "knowhere/object.h"
 #include "knowhere/operands.h"
-#include "knowhere/version.h"
 
 namespace knowhere {
 class ClusteringNode : public Object {
  public:
+    // kmeans train, return id_mapping
     virtual expected<DataSetPtr>
     Train(const DataSet& dataset, const Config& cfg) = 0;
 
+    // clustering assign, return id_mapping
     virtual expected<DataSetPtr>
     Assign(const DataSet& dataset, const Config& cfg) = 0;
+
+    // return centroids, must be called after trained
+    virtual expected<DataSetPtr>
+    GetCentroids() = 0;
 
     virtual std::unique_ptr<BaseConfig>
     CreateConfig() const = 0;
 
+    virtual std::string
+    Type() const = 0;
+
     virtual ~ClusteringNode() {
     }
-}
+};
 }  // namespace knowhere
 
 #endif /* CLUSTERING_NODE_H */

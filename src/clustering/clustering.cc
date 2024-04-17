@@ -9,7 +9,7 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 // or implied. See the License for the specific language governing permissions and limitations under the License.
 
-#include "knowhere/Clustering.h"
+#include "knowhere/clustering/clustering.h"
 
 #include "knowhere/comp/time_recorder.h"
 #include "knowhere/dataset.h"
@@ -37,7 +37,11 @@ template <typename T>
 inline expected<DataSetPtr>
 Clustering<T>::Train(const DataSet& dataset, const Json& json) {
     auto cfg = this->node->CreateConfig();
-    RETURN_IF_ERROR(LoadConfig(cfg.get(), json, knowhere::TRAIN, "Train"));
+    std::string msg;
+    auto status = LoadConfig(cfg.get(), json, knowhere::CLUSTERING, "Train", &msg);
+    if (status != Status::success) {
+        return expected<DataSetPtr>::Err(status, msg);
+    }
     return this->node->Train(dataset, *cfg);
 }
 
@@ -45,8 +49,24 @@ template <typename T>
 inline expected<DataSetPtr>
 Clustering<T>::Assign(const DataSet& dataset, const Json& json) {
     auto cfg = this->node->CreateConfig();
-    RETURN_IF_ERROR(LoadConfig(cfg.get(), json, knowhere::TRAIN, "Assign"));
-    return this->node->Add(dataset, *cfg);
+    std::string msg;
+    auto status = LoadConfig(cfg.get(), json, knowhere::CLUSTERING, "Assign", &msg);
+    if (status != Status::success) {
+        return expected<DataSetPtr>::Err(status, msg);
+    }
+    return this->node->Assign(dataset, *cfg);
+}
+
+template <typename T>
+inline expected<DataSetPtr>
+Clustering<T>::GetCentroids() {
+    return this->node->GetCentroids();
+}
+
+template <typename T>
+inline std::string
+Clustering<T>::Type() const {
+    return this->node->Type();
 }
 
 template class Clustering<ClusteringNode>;

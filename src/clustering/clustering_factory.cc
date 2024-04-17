@@ -15,29 +15,26 @@ namespace knowhere {
 
 template <typename DataType>
 expected<Clustering<ClusteringNode>>
-ClusteringFactory::Create(const std::string& name, const int32_t& version, const Object& object) {
+ClusteringFactory::Create(const std::string& name, const Object& object) {
     static_assert(KnowhereDataTypeCheck<DataType>::value == true);
     auto& func_mapping_ = MapInstance();
-    auto key = GetIndexKey<DataType>(name);
     if (func_mapping_.find(name) == func_mapping_.end()) {
-        LOG_KNOWHERE_ERROR_ << "failed to find index " << name << " in factory";
-        return expected<Clustering<ClusteringNode>>::Err(Status::invalid_index_error, "index not supported");
+        LOG_KNOWHERE_ERROR_ << "failed to find clustering type " << name << " in factory";
+        return expected<Clustering<ClusteringNode>>::Err(Status::clustering_error, "clustering type not supported");
     }
-    LOG_KNOWHERE_INFO_ << "use name " << name << " to create knowhere index " << name << " with version " << version;
+    LOG_KNOWHERE_INFO_ << "use name " << name << " to create knowhere clustering " << name;
     auto fun_map_v = (FunMapValue<Clustering<ClusteringNode>>*)(func_mapping_[name].get());
 
-    return fun_map_v->fun_value(version, object);
+    return fun_map_v->fun_value(object);
 }
 
 template <typename DataType>
 const ClusteringFactory&
-ClusteringFactory::Register(const std::string& name,
-                            std::function<Clustering<ClusteringNode>(const int32_t&, const Object&)> func) {
+ClusteringFactory::Register(const std::string& name, std::function<Clustering<ClusteringNode>(const Object&)> func) {
     static_assert(KnowhereDataTypeCheck<DataType>::value == true);
     auto& func_mapping_ = MapInstance();
-    auto key = GetIndexKey<DataType>(name);
-    assert(func_mapping_.find(key) == func_mapping_.end());
-    func_mapping_[key] = std::make_unique<FunMapValue<Clustering<ClusteringNode>>>(func);
+    assert(func_mapping_.find(name) == func_mapping_.end());
+    func_mapping_[name] = std::make_unique<FunMapValue<Clustering<ClusteringNode>>>(func);
     return *this;
 }
 
@@ -59,7 +56,7 @@ ClusteringFactory::MapInstance() {
 }  // namespace knowhere
    //
 template knowhere::expected<knowhere::Clustering<knowhere::ClusteringNode>>
-knowhere::ClusteringFactory::Create<knowhere::fp32>(const std::string&, const int32_t&, const Object&);
+knowhere::ClusteringFactory::Create<knowhere::fp32>(const std::string&, const Object&);
 template const knowhere::ClusteringFactory&
 knowhere::ClusteringFactory::Register<knowhere::fp32>(
-    const std::string&, std::function<knowhere::Clustering<knowhere::ClusteringNode>(const int32_t&, const Object&)>);
+    const std::string&, std::function<knowhere::Clustering<knowhere::ClusteringNode>(const Object&)>);

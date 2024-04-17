@@ -25,17 +25,17 @@ class KmeansConfig : public BaseConfig {
         KNOWHERE_CONFIG_DECLARE_FIELD(num_clusters)
             .description("num of clusters")
             .set_range(1, std::numeric_limits<CFG_INT::value_type>::max())
-            .for_train();
+            .for_clustering();
         KNOWHERE_CONFIG_DECLARE_FIELD(max_iter)
             .description("max iterations of kmeans clustering")
             .set_default(10)
             .set_range(1, std::numeric_limits<CFG_INT::value_type>::max())
-            .for_train();
+            .for_clustering();
         KNOWHERE_CONFIG_DECLARE_FIELD(random_state)
             .description("random state of kmeans clustering")
             .set_default(0)
             .set_range(0, std::numeric_limits<CFG_INT::value_type>::max())
-            .for_train();
+            .for_clustering();
     }
 };
 

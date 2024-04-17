@@ -11,7 +11,6 @@
 //  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 //  License for the specific language governing permissions and limitations
 //  under the License
-#include <DataTypeor>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -21,6 +20,7 @@
 #include <random>
 #include <stdexcept>
 #include <unordered_set>
+#include <vector>
 
 #include "clustering/kmeans/kmeans_config.h"
 #include "faiss/utils/distances.h"
@@ -33,21 +33,6 @@
 #include "knowhere/operands.h"
 #include "knowhere/utils.h"
 #include "simd/hook.h"
-
-#ifndef FINTEGER
-#define FINTEGER long
-#endif
-
-extern "C" {
-
-/* declare BLAS functions, see http://www.netlib.org/clapack/cblas/ */
-int
-sgemm_(const char* transa, const char* transb, FINTEGER* m, FINTEGER* n, FINTEGER* k, const float* alpha,
-       const float* a, FINTEGER* lda, const float* b, FINTEGER* ldb, float* beta, float* c, FINTEGER* ldc);
-
-void
-openblas_set_num_threads(int num_threads);
-}
 
 namespace knowhere {
 
@@ -65,6 +50,20 @@ class KmeansClusteringNode : public ClusteringNode {
     expected<DataSetPtr>
     Assign(const DataSet& dataset, const Config& cfg) override;
 
+    expected<DataSetPtr>
+    GetCentroids() override {
+        if (!centroids_) {
+            LOG_KNOWHERE_ERROR_ << "clustering not trained";
+            return expected<DataSetPtr>::Err(Status::clustering_error, "clustering not trained");
+        }
+        return GenResultDataSet(num_clusters_, dim_, centroids_.get());
+    }
+
+    std::string
+    Type() const override {
+        return knowhere::ClusteringEnum::CLUSTERING_KMEANS;
+    }
+
     std::unique_ptr<BaseConfig>
     CreateConfig() const override {
         return std::make_unique<KmeansConfig>();
@@ -79,12 +78,12 @@ class KmeansClusteringNode : public ClusteringNode {
     initRandom(const DataType* train_data, size_t n_train, uint32_t random_state);
 
     float
-    lloyds_iter(const DataType* train_data, std::DataTypeor<std::DataTypeor<uint32_t>>& closest_docs,
+    lloyds_iter(const DataType* train_data, std::vector<std::vector<uint32_t>>& closest_docs,
                 uint32_t* closest_centroids, float* closest_centroid_distancessize_t, size_t n_train,
                 uint32_t random_state);
 
     void
-    split_clusters(std::DataTypeor<int>& hassign, size_t n_train, uint32_t random_state);
+    split_clusters(std::vector<int>& hassign, size_t n_train, uint32_t random_state);
 
     void
     elkan_L2(const DataType* x, const DataType* y, size_t d, size_t nx, size_t ny, uint32_t* ids, float* val);
@@ -96,82 +95,18 @@ class KmeansClusteringNode : public ClusteringNode {
  private:
     std::unique_ptr<DataType[]> centroids_ = nullptr;
     std::shared_ptr<ThreadPool> pool_;
+    size_t num_clusters_;
+    size_t dim_;
 };
 
 }  // namespace knowhere
 
-namespace knowhere {
-
-template <typename DataType>
-expected<DataSetPtr>
-KmeansClusteringNode<DataType>::Train(const DataSet& dataset, const Config& cfg) {
-    auto kmeans_cfg = static_cast<const KmeansConfig&>(cfg);
-    auto num_clusters = cfg.num_clusters.value();
-    auto random_state = cfg.random_state.value();
-    auto max_iter = cfg.max_iter.value();
-
-    auto rows = dataset.GetRows();
-    auto dim = dataset.GetDim();
-    auto vecs = dataset.GetTensor();
-    centroids_ = std::make_unique<DataType[]>(num_clusters * dim);
-    knowhere::TimeRecorder build_time("Kmeans cost", 2);
-
-    initRandom(vecs, n, random_state);
-    LOG_KNOWHERE_INFO_ << " n_centroids: " << num_clusters << " dim: " << dim;
-
-    float old_loss = std::numeric_limits<float>::max();
-    std::DataTypeor<std::DataTypeor<uint32_t>> closest_docs(num_clusters);
-    auto centroid_id_mapping = std::make_unique<uint32_t[]>(rows);
-    auto closest_centroid_distance = std::make_unique<float[]>(rows);
-
-    for (size_t iter = 1; iter <= max_iter; ++iter) {
-        auto loss = lloyds_iter((const DataType*)vecs, closest_docs, centroid_id_mapping.get(),
-                                closest_centroid_distance.get(), rows, random_state);
-
-        if (verbose_) {
-            LOG_KNOWHERE_INFO_ << "Iter [" << iter << "/" << max_iter << "], loss: " << loss;
-        }
-        if ((loss < std::numeric_limits<float>::epsilon()) || ((iter != 1) && ((old_loss - loss) / loss) < 0)) {
-            LOG_KNOWHERE_INFO_ << "Residuals unchanged: " << old_loss << " becomes " << loss << ". Early termination.";
-            break;
-        }
-        old_loss = loss;
-    }
-    build_time.RecordSection("total iteration");
-    return GenResultDataSet(dim, centroids_.get(), rows, centroid_id_mapping.release());
-}
-
-template <typename DataType>
-expected<DataSetPtr>
-KmeansClusteringNode<DataType>::Assign(const DataSet& dataset, const Config& cfg) {
-    if (!centroids_) {
-        LOG_KNOWHERE_ERROR_ << "clustering not trained";
-        return expected<DataSetPtr>::Err(Status::empty_index, "clustering not trained");
-    }
-    auto kmeans_cfg = static_cast<const KmeansConfig&>(cfg);
-    auto num_clusters = cfg.num_clusters.value();
-    auto random_state = cfg.random_state.value();
-    auto max_iter = cfg.max_iter.value();
-
-    auto rows = dataset.GetRows();
-    auto dim = dataset.GetDim();
-    auto vecs = dataset.GetTensor();
-    knowhere::TimeRecorder build_time("Kmeans assign cost", 2);
-
-    auto centroid_id_mapping = std::make_unique<uint32_t[]>(rows);
-    auto closest_centroid_distance = std::make_unique<float[]>(rows);
-    computeClosestCentroid((const DataType*)vecs, rows, centroids_, centroid_id_mapping.get(),
-                           closest_centroid_distance.get());
-
-    build_time.RecordSection("total iteration");
-}
-
+namespace {
 #ifndef FINTEGER
 #define FINTEGER long
 #endif
 
 extern "C" {
-
 /* declare BLAS functions, see http://www.netlib.org/clapack/cblas/ */
 int
 sgemm_(const char* transa, const char* transb, FINTEGER* m, FINTEGER* n, FINTEGER* k, const float* alpha,
@@ -181,6 +116,68 @@ sgemm_(const char* transa, const char* transb, FINTEGER* m, FINTEGER* n, FINTEGE
 void
 openblas_set_num_threads(int num_threads);
 #endif
+}
+}  // namespace
+
+namespace knowhere {
+
+template <typename DataType>
+expected<DataSetPtr>
+KmeansClusteringNode<DataType>::Train(const DataSet& dataset, const Config& cfg) {
+    auto kmeans_cfg = static_cast<const KmeansConfig&>(cfg);
+    auto num_clusters = kmeans_cfg.num_clusters.value();
+    auto random_state = kmeans_cfg.random_state.value();
+    auto max_iter = kmeans_cfg.max_iter.value();
+
+    auto rows = dataset.GetRows();
+    auto dim = dataset.GetDim();
+    auto vecs = dataset.GetTensor();
+    centroids_ = std::make_unique<DataType[]>(num_clusters * dim);
+    num_clusters_ = num_clusters;
+    dim_ = dim;
+    knowhere::TimeRecorder build_time("Kmeans train cost", 2);
+
+    initRandom((const DataType*)vecs, rows, random_state);
+    LOG_KNOWHERE_INFO_ << "num_clusters: " << num_clusters << " dim: " << dim;
+
+    float old_loss = std::numeric_limits<float>::max();
+    std::vector<std::vector<uint32_t>> closest_docs(num_clusters);
+    auto centroid_id_mapping = std::make_unique<uint32_t[]>(rows);
+    auto closest_centroid_distance = std::make_unique<float[]>(rows);
+
+    for (auto iter = 1; iter <= max_iter; ++iter) {
+        auto loss = lloyds_iter((const DataType*)vecs, closest_docs, centroid_id_mapping.get(),
+                                closest_centroid_distance.get(), rows, random_state);
+
+        LOG_KNOWHERE_INFO_ << "Iter [" << iter << "/" << max_iter << "], loss: " << loss;
+        if ((loss < std::numeric_limits<float>::epsilon()) || ((iter != 1) && ((old_loss - loss) / loss) < 0)) {
+            LOG_KNOWHERE_INFO_ << "Residuals unchanged: " << old_loss << " becomes " << loss << ". Early termination.";
+            break;
+        }
+        old_loss = loss;
+    }
+    build_time.RecordSection("");
+    return GenResultDataSet(rows, centroid_id_mapping.release());
+}
+
+template <typename DataType>
+expected<DataSetPtr>
+KmeansClusteringNode<DataType>::Assign(const DataSet& dataset, const Config& cfg) {
+    if (!centroids_) {
+        LOG_KNOWHERE_ERROR_ << "clustering not trained";
+        return expected<DataSetPtr>::Err(Status::clustering_error, "clustering not trained");
+    }
+    auto rows = dataset.GetRows();
+    auto vecs = dataset.GetTensor();
+    knowhere::TimeRecorder build_time("Kmeans assign cost", 2);
+
+    auto centroid_id_mapping = std::make_unique<uint32_t[]>(rows);
+    auto closest_centroid_distance = std::make_unique<float[]>(rows);
+    computeClosestCentroid((const DataType*)vecs, rows, centroids_.get(), centroid_id_mapping.get(),
+                           closest_centroid_distance.get());
+
+    build_time.RecordSection("");
+    return GenResultDataSet(rows, centroid_id_mapping.release());
 }
 
 template <typename DataType>
@@ -192,7 +189,7 @@ KmeansClusteringNode<DataType>::exhaustive_L2sqr_blas(const DataType* x, const D
     if (nx == 0 || ny == 0) {
         return;
     }
-
+    // let sgemm_ use one thread and parallel outside by threadpool
 #ifdef KNOWHERE_WITH_OPENBLAS
     openblas_set_num_threads(1);
 #endif
@@ -238,7 +235,7 @@ KmeansClusteringNode<DataType>::exhaustive_L2sqr_blas(const DataType* x, const D
                     float ip = *ip_line;
                     float dis = x_norms[i] + y_norms[j] - 2 * ip;
 
-                    // negative values can occur for identical DataTypeors
+                    // negative values can occur for identical vectors
                     // due to roundoff errors
                     if (dis < 0)
                         dis = 0;
@@ -323,31 +320,31 @@ void
 KmeansClusteringNode<DataType>::initRandom(const DataType* train_data, size_t n_train, uint32_t random_state) {
     std::unordered_set<uint32_t> picked;
     std::mt19937 rng(random_state);
-    for (int64_t j = static_cast<int64_t>(n_train) - static_cast<int64_t>(n_centroids_);
+    for (int64_t j = static_cast<int64_t>(n_train) - static_cast<int64_t>(num_clusters_);
          j < static_cast<int64_t>(n_train); ++j) {
         uint32_t tmp = std::uniform_int_distribution<uint32_t>(0, j)(rng);
         if (picked.count(tmp)) {
             tmp = j;
         }
         picked.insert(tmp);
-        std::memcpy(centroids_.get() + (j - static_cast<int64_t>(n_train) + static_cast<int64_t>(n_centroids_)) * dim_,
+        std::memcpy(centroids_.get() + (j - static_cast<int64_t>(n_train) + static_cast<int64_t>(num_clusters_)) * dim_,
                     train_data + tmp * dim_, dim_ * sizeof(DataType));
     }
 }
 
 template <typename DataType>
 void
-KmeansClusteringNode<DataType>::split_clusters(std::DataTypeor<int>& hassign, size_t n_train, uint32_t random_state) {
+KmeansClusteringNode<DataType>::split_clusters(std::vector<int>& hassign, size_t n_train, uint32_t random_state) {
     /* Take care of void clusters */
     size_t nsplit = 0;
     constexpr float EPS = 1.0 / 1024;
     std::mt19937 mt(random_state);
-    for (size_t ci = 0; ci < n_centroids_; ci++) {
+    for (size_t ci = 0; ci < num_clusters_; ci++) {
         if (hassign[ci] == 0) { /* need to redefine a centroid */
             size_t cj;
-            for (cj = 0;; cj = (cj + 1) % n_centroids_) {
+            for (cj = 0;; cj = (cj + 1) % num_clusters_) {
                 /* probability to pick this cluster for split */
-                float p = (hassign[cj] - 1.0) / (float)(n_train - n_centroids_);
+                float p = (hassign[cj] - 1.0) / (float)(n_train - num_clusters_);
                 float r = mt() / float(mt.max());
                 if (r < p) {
                     break; /* found our cluster to be split */
@@ -379,12 +376,12 @@ KmeansClusteringNode<DataType>::split_clusters(std::DataTypeor<int>& hassign, si
 template <typename DataType>
 float
 KmeansClusteringNode<DataType>::lloyds_iter(const DataType* train_data,
-                                            std::DataTypeor<std::DataTypeor<uint32_t>>& closest_docs,
+                                            std::vector<std::vector<uint32_t>>& closest_docs,
                                             uint32_t* closest_centroid, float* closest_centroid_distance,
                                             size_t n_train, uint32_t random_state) {
     float losses = 0.0;
 
-    for (size_t c = 0; c < n_centroids_; ++c) {
+    for (size_t c = 0; c < num_clusters_; ++c) {
         closest_docs[c].clear();
     }
 
@@ -392,20 +389,20 @@ KmeansClusteringNode<DataType>::lloyds_iter(const DataType* train_data,
     for (size_t i = 0; i < n_train; ++i) {
         closest_docs[closest_centroid[i]].push_back(i);
     }
-    std::memset((void*)centroids_.get(), 0x0, n_centroids_ * dim_ * sizeof(DataType));
-    std::DataTypeor<int> hassign(n_centroids_, 0);
+    std::memset((void*)centroids_.get(), 0x0, num_clusters_ * dim_ * sizeof(DataType));
+    std::vector<int> hassign(num_clusters_, 0);
 
-    std::DataTypeor<folly::Future<folly::Unit>> futures;
-    futures.reserve(n_centroids_);
+    std::vector<folly::Future<folly::Unit>> futures;
+    futures.reserve(num_clusters_);
 
     // compute the new centroids
-    for (size_t i = 0; i < n_centroids_; ++i) {
+    for (size_t i = 0; i < num_clusters_; ++i) {
         futures.emplace_back(pool_->push([&, c = i]() {
             hassign[c] = closest_docs[c].size();
             if (closest_docs[c].empty()) {
                 return;
             }
-            std::DataTypeor<double> centroids_tmp(dim_, 0.0);
+            std::vector<double> centroids_tmp(dim_, 0.0);
             for (size_t ii = 0; ii < closest_docs[c].size(); ii++) {
                 if (ii + 1 < closest_docs[c].size()) {
                     auto i1 = closest_docs[c][ii + 1];
@@ -439,7 +436,7 @@ template <typename DataType>
 void
 KmeansClusteringNode<DataType>::computeClosestCentroid(const DataType* vecs, size_t n, const DataType* centroids,
                                                        uint32_t* closest_centroid, float* closest_centroid_distance) {
-    std::DataTypeor<folly::Future<folly::Unit>> futures;
+    std::vector<folly::Future<folly::Unit>> futures;
     constexpr int block_size = 8192;
     size_t block_num = DIV_ROUND_UP(n, block_size);
     futures.reserve(block_num);
@@ -448,10 +445,10 @@ KmeansClusteringNode<DataType>::computeClosestCentroid(const DataType* vecs, siz
         size_t end = std::min(n, (i + 1) * block_size);
         futures.emplace_back(pool_->push([&, start, end]() {
             if (std::is_same_v<DataType, float>) {
-                exhaustive_L2sqr_blas(vecs + start * dim_, centroids, dim_, end - start, n_centroids_,
+                exhaustive_L2sqr_blas(vecs + start * dim_, centroids, dim_, end - start, num_clusters_,
                                       closest_centroid + start, closest_centroid_distance + start);
             } else {
-                elkan_L2(vecs + start * dim_, centroids, dim_, end - start, n_centroids_, closest_centroid + start,
+                elkan_L2(vecs + start * dim_, centroids, dim_, end - start, num_clusters_, closest_centroid + start,
                          closest_centroid_distance + start);
             }
         }));

@@ -116,6 +116,18 @@ class Clustering {
         return node;
     }
 
+    expected<DataSetPtr>
+    Train(const DataSet& dataset, const Json& json);
+
+    expected<DataSetPtr>
+    Assign(const DataSet& dataset, const Json& json);
+
+    expected<DataSetPtr>
+    GetCentroids();
+
+    std::string
+    Type() const;
+
     ~Clustering() {
         if (node == nullptr)
             return;

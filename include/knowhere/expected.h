@@ -43,6 +43,7 @@ enum class Status {
     cardinal_inner_error = 21,
     cuda_runtime_error = 22,
     invalid_index_error = 23,
+    clustering_error = 24,
 };
 
 inline std::string
@@ -88,6 +89,8 @@ Status2String(knowhere::Status status) {
             return "the current index is not supported on the current CPU model";
         case knowhere::Status::cardinal_inner_error:
             return "cardinal inner error";
+        case knowhere::Status::clustering_error:
+            return "clustering error";
         default:
             return "unexpected status";
     }

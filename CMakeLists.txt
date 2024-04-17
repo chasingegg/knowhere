@@ -108,7 +108,7 @@ if(WITH_COVERAGE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
-knowhere_file_glob(GLOB_RECURSE KNOWHERE_SRCS src/common/*.cc src/index/*.cc
+knowhere_file_glob(GLOB_RECURSE KNOWHERE_SRCS src/clustering/*.cc src/common/*.cc src/index/*.cc
                    src/io/*.cc src/common/*.cu src/index/*.cu src/io/*.cu)
 
 set(KNOWHERE_LINKER_LIBS "")
